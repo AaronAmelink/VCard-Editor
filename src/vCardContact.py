@@ -1,6 +1,8 @@
 
 from ctypes import *
 
+from numpy import c_
+
 def create_c_string(string):
     return c_char_p(string.encode('utf-8'))
 
@@ -23,19 +25,28 @@ class vCardContact:
         self.vCardLib.writeCard.restype = c_int
         self.vCardLib.writeCard.argtypes = [c_char_p, c_void_p]
 
+        self._contact_fn = None
+        self._anniversary = None
+        self._bday = None
+        self._file_name = None
+        self._other_properties = None
+
+        if (file_name == ""):
+            self._vCard_ptr = self.vCardLib.createVCardPointer(c_char_p(0))
 
         # run c function to parse file_name / validate it
-        self._file_name = file_name
-        self._vCard_ptr = self.vCardLib.createVCardPointer(create_c_string(file_name))
-        if (self.validate() != 0):
-            #0 is code for OK
-            print("Failed to validate vCard")
-            return None
-        else:
-            self._other_properties = self.vCardLib.getCardOtherPropertyNumbers(self._vCard_ptr)
-            self._contact_fn = self.vCardLib.getCardFN(self._vCard_ptr).decode('utf-8')
-            self._anniversary = self._get_anniverstary_from_file()
-            self._bday = self._get_birthday_from_file()
+        else :
+            self._file_name = file_name
+            self._vCard_ptr = self.vCardLib.createVCardPointer(create_c_string(file_name))
+            if (self.validate() != 0):
+                #0 is code for OK
+                print("Failed to validate vCard")
+                return None
+            else:
+                self._other_properties = self.vCardLib.getCardOtherPropertyNumbers(self._vCard_ptr)
+                self._contact_fn = self.vCardLib.getCardFN(self._vCard_ptr).decode('utf-8')
+                self._anniversary = self._get_anniverstary_from_file()
+                self._bday = self._get_birthday_from_file()
 
     def _get_anniverstary_from_file(self):
         res = self.vCardLib.getCardAnniversary(self._vCard_ptr)
@@ -59,7 +70,10 @@ class vCardContact:
     
     def write_to_file(self, file_name=""):
         if (file_name == ""):
-            file_name = self._file_name
+            if (self._file_name == None):
+                raise ValueError("No file name provided")
+            else:
+                file_name = self._file_name
         res = self.vCardLib.writeCard(create_c_string(file_name), self._vCard_ptr)
         if (res != 0):
             raise ValueError("Failed to write to file")
@@ -68,6 +82,8 @@ class vCardContact:
 
     @property
     def contact_fn(self):
+        if (self._contact_fn == None):
+            return "No Contact Name"
         return self._contact_fn
 
     @contact_fn.setter
@@ -77,12 +93,15 @@ class vCardContact:
             raise ValueError("Failed to set contact_fn")
         else:
             if (self.validate() != 0):
-                self.vCardLib.setCardFN(self._vCard_ptr, create_c_string(self._contact_fn))
+                if (self._contact_fn != None):
+                    self.vCardLib.setCardFN(self._vCard_ptr, create_c_string(self._contact_fn))
                 raise ValueError("Invalid Contact")
         self._contact_fn = v
 
     @property
     def anniversary(self):
+        if (self._anniversary == None):
+            return "No Anniversary"
         return self._anniversary
     
     @anniversary.setter
@@ -98,6 +117,8 @@ class vCardContact:
 
     @property
     def bday(self):
+        if (self._bday == None):
+            return "No Birthday"
         return self._bday
 
     @bday.setter
@@ -113,6 +134,8 @@ class vCardContact:
 
     @property
     def file_name(self):
+        if (self._file_name == None):
+            return "No File Name"
         return self._file_name
     
     @file_name.setter
@@ -127,12 +150,3 @@ class vCardContact:
     def other_properties(self, v):
         #this should be constant.
         pass
-
-
-test = vCardContact("testCardMin.vcf")
-print(test)
-test.contact_fn = "New Name"
-test.anniversary = "New Anniversary"
-test.bday = "New Birthday"
-print(test)
-test.write_to_file("testCardMin3.vcf")

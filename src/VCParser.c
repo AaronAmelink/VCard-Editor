@@ -16,14 +16,24 @@ void deleteProperty(void* toBeDeleted) {
     Property* prop = (Property*)toBeDeleted;
 
     // Free the name and group strings
+    if (prop->name != NULL) {
+        free(prop->name);
+        prop->name = NULL;
+    }
+    if (prop->group != NULL) {
+        free(prop->group);
+        prop->group = NULL;
+    }
 
-    free(prop->name);
-    free(prop->group);
 
-
-    freeList(prop->parameters);
-    freeList(prop->values);
-
+    if (prop->parameters != NULL) {
+        freeList(prop->parameters);
+        prop->parameters = NULL;
+    }
+    if (prop->values != NULL) {
+        freeList(prop->values);
+        prop->values = NULL;
+    }
 
     free(prop);
 }

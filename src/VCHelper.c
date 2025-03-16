@@ -439,6 +439,14 @@ int dateToFile(FILE* fptr, void* date) {
 
 Card* createVCardPointer(char* fileName) {
     Card *card = NULL;
+    if (fileName == NULL) {
+        Card* card = malloc(sizeof(Card));
+        card->optionalProperties = initializeList(&propertyToString, &deleteProperty, &compareProperties);
+        card->fn = NULL;
+        card->anniversary = NULL;
+        card->birthday = NULL;
+        return card;
+    }
     VCardErrorCode response = createCard(fileName, &card);
     if (response != OK) {
         return NULL;
@@ -473,25 +481,27 @@ char* getCardFN(Card* card) {
     return copy;
 }
 
-int setCardFN(Card* card, char* fn) {
-    //should always have an FN, so theres no case to check if it doesnt exist
-    if (card == NULL || fn == NULL) {
+int setCardFN(Card* card, char* name) {
+    if (card == NULL || name == NULL) {
         return 0;
     }
     if (card->fn != NULL) {
         deleteProperty(card->fn);
     }
     card->fn = malloc(sizeof(Property));
-    Property* prop = card->fn;
-    prop->name = malloc(strlen("FN")+1);
-    strcpy(prop->name, "FN");
+    card->fn->name = malloc(strlen("FN")+1);
+    strcpy(card->fn->name, "FN");
+
+    char* value = malloc(strlen(name)+1);
+    strcpy(value, name);
+    value[strlen(name)] = '\0';
 
     //might need to parse group later on??
     card->fn->group = createEmptyString();
-    prop->values = initializeList(&valueToString, &deleteValue, &compareValues);
-    prop->parameters = initializeList(&parameterToString, &deleteParameter, &compareParameters);
+    card->fn->values = initializeList(&valueToString, &deleteValue, &compareValues);
+    card->fn->parameters = initializeList(&parameterToString, &deleteParameter, &compareParameters);
 
-    insertBack(prop->values, fn);
+    insertBack(card->fn->values, value);
     return 1;
 }
 
