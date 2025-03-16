@@ -48,4 +48,20 @@ VCardErrorCode validateProperty(const Property* prop, bool isOptional);
 
 VCardErrorCode validateDateTime(DateTime* dt);
 
+Card* createVCardPointer(char* fileName);
+
+int getCardOtherPropertyNumbers(Card* card);
+
+char* getCardFN(Card* card);
+
+int setCardFN(Card* card, char* fn);
+
+char* getCardBirthday(Card* card);
+
+int setCardBirthday(Card* card, char* birthday);
+
+char* getCardAnniversary(Card* card);
+
+int setCardAnniversary(Card* card, char* anniversary);
+
 #endif	

@@ -570,7 +570,6 @@ VCardErrorCode createCard(char* fileName, Card** obj){
 
 
 VCardErrorCode writeCard(const char* fileName, const Card* obj) {
-
     if (fileName == NULL || obj == NULL) {
         return WRITE_ERROR;
     }

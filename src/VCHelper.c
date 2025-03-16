@@ -436,3 +436,116 @@ int dateToFile(FILE* fptr, void* date) {
     fprintf(fptr, "\r\n");
     return 1;
 }
+
+Card* createVCardPointer(char* fileName) {
+    Card *card = NULL;
+    VCardErrorCode response = createCard(fileName, &card);
+    if (response != OK) {
+        return NULL;
+    }
+    return card;
+}
+
+int getCardOtherPropertyNumbers(Card* card) {
+    if (card == NULL) {
+        return 0;
+    }
+    else {
+        return card->optionalProperties->length;
+    }
+}
+
+char* getCardFN(Card* card) {
+    if (card == NULL) {
+        return NULL;
+    }
+    if (card->fn == NULL) {
+        return NULL;
+    }
+    Property* fn = card->fn;
+    ListIterator iter = createIterator(fn->values);
+    char* value = nextElement(&iter);
+    if (value == NULL) {
+        return NULL;
+    }
+    char* copy = malloc(strlen(value)+1);
+    strcpy(copy, value);
+    return copy;
+}
+
+int setCardFN(Card* card, char* fn) {
+    //should always have an FN, so theres no case to check if it doesnt exist
+    if (card == NULL || fn == NULL) {
+        return 0;
+    }
+    if (card->fn != NULL) {
+        deleteProperty(card->fn);
+    }
+    card->fn = malloc(sizeof(Property));
+    Property* prop = card->fn;
+    prop->name = malloc(strlen("FN")+1);
+    strcpy(prop->name, "FN");
+
+    //might need to parse group later on??
+    card->fn->group = createEmptyString();
+    prop->values = initializeList(&valueToString, &deleteValue, &compareValues);
+    prop->parameters = initializeList(&parameterToString, &deleteParameter, &compareParameters);
+
+    insertBack(prop->values, fn);
+    return 1;
+}
+
+char* getCardAnniversary(Card* card) {
+    if (card == NULL) {
+        return NULL;
+    }
+    if (card->anniversary == NULL) {
+        return NULL;
+    }
+    char* text = dateToString(card->anniversary);
+    return text;
+}
+
+int setCardAnniversary(Card* card, char* anniversary) {
+    if (card == NULL || anniversary == NULL) {
+        return 0;
+    }
+
+    DateTime* dt = parseDateTime(anniversary);
+    if (dt == NULL) {
+        return 0;
+    }
+    if (card->anniversary != NULL) {
+        free(card->anniversary);
+
+    }
+    card->anniversary = dt;
+    return 1;
+}
+
+char* getCardBirthday(Card* card) {
+    if (card == NULL) {
+        return NULL;
+    }
+    if (card->birthday == NULL) {
+        return NULL;
+    }
+    char* text = dateToString(card->birthday);
+    return text;
+}
+
+int setCardBirthday(Card* card, char* birthday) {
+    if (card == NULL || birthday == NULL) {
+        return 0;
+    }
+
+    DateTime* dt = parseDateTime(birthday);
+    if (dt == NULL) {
+        return 0;
+    }
+    if (card->birthday != NULL) {
+        free(card->birthday);
+    }
+    card->birthday = dt;
+    return 1;
+}
