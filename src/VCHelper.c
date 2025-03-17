@@ -533,6 +533,30 @@ int setCardAnniversary(Card* card, char* anniversary) {
     return 1;
 }
 
+int removeCardAnniversary(Card* card) {
+    if (card == NULL) {
+        return 0;
+    }
+    if (card->anniversary == NULL) {
+        return 0;
+    }
+    free(card->anniversary);
+    card->anniversary = NULL;
+    return 1;
+}
+
+int removeCardBirthday(Card* card) {
+    if (card == NULL) {
+        return 0;
+    }
+    if (card->birthday == NULL) {
+        return 0;
+    }
+    free(card->birthday);
+    card->birthday = NULL;
+    return 1;
+}
+
 char* getCardBirthday(Card* card) {
     if (card == NULL) {
         return NULL;

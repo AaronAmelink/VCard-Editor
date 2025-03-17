@@ -1,3 +1,8 @@
 .docker/
 .vscode/
-bin/*
+bin/*.so
+bin/*.dll
+bin/*.o
+bin/*.a
+bin/*.exe
+bin/*.out

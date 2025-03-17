@@ -1,13 +1,15 @@
 
 from ctypes import *
+import os
 
-from numpy import c_
 
 def create_c_string(string):
     return c_char_p(string.encode('utf-8'))
 
 class vCardContact:
     def __init__(self, file_name=""):
+
+        print(file_name)
 
         self.vCardLib = CDLL("libvcparser.so")
         if not self.vCardLib:
@@ -83,11 +85,14 @@ class vCardContact:
     @property
     def contact_fn(self):
         if (self._contact_fn == None):
-            return "No Contact Name"
+            return ""
         return self._contact_fn
 
     @contact_fn.setter
     def contact_fn(self, v):
+        if (v == None or v == ""):
+            raise ValueError("Contact Name cannot be empty")
+
         res = self.vCardLib.setCardFN(self._vCard_ptr, create_c_string(v))
         if (res == 0):
             raise ValueError("Failed to set contact_fn")
@@ -100,12 +105,15 @@ class vCardContact:
 
     @property
     def anniversary(self):
-        if (self._anniversary == None):
-            return "No Anniversary"
         return self._anniversary
     
     @anniversary.setter
     def anniversary(self, v):
+        if (v == None):
+            self.vCardLib.removeCardAnniversary(self._vCard_ptr)
+            self._anniversary = None
+            return
+
         res = self.vCardLib.setCardAnniversary(self._vCard_ptr, create_c_string(v))
         if (res == 0):
             raise ValueError("Failed to set anniversary")
@@ -117,12 +125,15 @@ class vCardContact:
 
     @property
     def bday(self):
-        if (self._bday == None):
-            return "No Birthday"
         return self._bday
 
     @bday.setter
     def bday(self, v):
+        if (v == None):
+            self.vCardLib.removeCardBirthday(self._vCard_ptr)
+            self._bday = None
+            return
+        
         res = self.vCardLib.setCardBirthday(self._vCard_ptr, create_c_string(v))
         if (res == 0):
             raise ValueError("Failed to set bday")
@@ -144,9 +155,73 @@ class vCardContact:
 
     @property
     def other_properties(self):
-        return self._other_properties
+        return str(self._other_properties)
     
     @other_properties.setter
     def other_properties(self, v):
         #this should be constant.
         pass
+
+
+class ContactManager:
+    def __init__(self):
+        self.contacts = []
+        self.enum = []
+        self.currently_selected = 0
+    
+    def add_contact(self, contact):
+        self.contacts.append(contact)
+        self.enum.append((contact.contact_fn, len(self.contacts)-1))
+
+    def get_enum(self):
+        self.enum = []
+        for i, j in enumerate(self.contacts):
+            self.enum.append((j.contact_fn, i))
+        return self.enum
+
+    def remove_contact(self, index):
+        self.contacts.pop(index)
+        self.enum.pop(index)
+
+
+    def load_contacts(self):
+        files = os.listdir( os.path.abspath(os.getcwd()) + "/bin/cards/")
+        for file in files:
+            if file.endswith(".vcf") or file.endswith(".vcard"):
+                self.add_contact(vCardContact(os.path.abspath(os.getcwd()) +"/bin/cards/"+file))
+
+    def save_contacts_to_file(self):
+        for contact in self.contacts:
+            contact.write_to_file()
+
+    def get_contact(self, index=-1):
+        contact = self.contacts[self.currently_selected if index == -1 else index]
+        return {"contact_fn": contact.contact_fn, "anniversary": contact.anniversary, "bday": contact.bday, "file_name": contact.file_name, "other_properties": contact.other_properties}
+
+    def create_contact(self, data):
+        try:
+            self.add_contact(vCardContact())
+            self.contacts[-1].contact_fn = data["contact_fn"]
+            self.contacts[-1].anniversary = data["anniversary"] if data["anniversary"] != "" else None
+            self.contacts[-1].bday = data["bday"] if data["bday"] != "" else None
+            self.contacts[-1].file_name = data["file_name"]
+            self.contacts[-1].other_properties = 0
+            self.get_enum()
+            return True
+        except ValueError as e:
+            self.remove_contact(-1)
+            return False
+
+    def update_contact(self, data):
+
+        try:
+            self.contacts[self.currently_selected].anniversary = data["anniversary"] if data["anniversary"] != "" else None
+            self.contacts[self.currently_selected].bday = data["bday"] if data["bday"] != "" else None
+            self.contacts[self.currently_selected].file_name = data["file_name"]
+            self.contacts[self.currently_selected].other_properties = data["other_properties"]
+            self.contacts[self.currently_selected].contact_fn = data["contact_fn"]
+            self.get_enum()
+            return True
+        except ValueError as e:
+            return False
+

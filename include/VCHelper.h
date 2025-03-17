@@ -64,4 +64,8 @@ char* getCardAnniversary(Card* card);
 
 int setCardAnniversary(Card* card, char* anniversary);
 
+int removeCardAnniversary(Card* card);
+
+int removeCardBirthday(Card* card);
+
 #endif	
