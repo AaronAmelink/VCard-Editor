@@ -2,6 +2,9 @@
 from ctypes import *
 import os
 
+from numpy import insert
+from SQLManager import *
+
 
 def create_c_string(string):
     return c_char_p(string.encode('utf-8'))
@@ -168,6 +171,13 @@ class ContactManager:
         self.contacts = []
         self.enum = []
         self.currently_selected = 0
+        self._file_prefix = os.getcwd() +"/bin/cards/"
+
+        self.sql_manager = None
+
+    def init_sql(self, name, user, password):
+        self.sql_manager = SQLManager(name, user, password)
+
     
     def add_contact(self, contact):
         self.contacts.append(contact)
@@ -180,45 +190,109 @@ class ContactManager:
         return self.enum
 
     def remove_contact(self, index):
+        
+
+        if (self.sql_manager):
+            fileQuery = f"DELETE FROM FILE WHERE file_name = '{self.contacts[index].file_name}'"
+            try:
+                self.sql_manager.run_query(fileQuery)
+            except mysql.connector.Error as e:
+                pass
+
+
         self.contacts.pop(index)
         self.enum.pop(index)
+            
+
 
 
     def load_contacts(self):
         files = os.listdir( os.path.abspath(os.getcwd()) + "/bin/cards/")
         for file in files:
             if file.endswith(".vcf") or file.endswith(".vcard"):
-                self.add_contact(vCardContact(os.path.abspath(os.getcwd()) +"/bin/cards/"+file))
+                self.add_contact(vCardContact(os.path.abspath(self._file_prefix+file)))
+
+                if (self.sql_manager):
+                    createQuery = "SELECT * FROM FILE WHERE file_name = '" + os.path.abspath(self._file_prefix+file) + "'"
+                    res = self.sql_manager.run_query(createQuery)
+
+                    if (not res or len(res) == 0):
+                        insertQuery = f"INSERT INTO FILE (file_name, last_modified, creation_time) VALUES ('{os.path.abspath(self._file_prefix+file)}', NOW(), NOW())"
+                        res = self.sql_manager.run_query(insertQuery)
+
+                        insertQuery = f"INSERT INTO CONTACT (name, birthday, anniversary, file_id) VALUES ('{self.contacts[-1].contact_fn}', NULL, NULL, (SELECT file_id FROM FILE WHERE file_name = '{os.path.abspath(self._file_prefix+file)}'))"
+                        res = self.sql_manager.run_query(insertQuery)
+
 
     def save_contacts_to_file(self):
         for contact in self.contacts:
             contact.write_to_file()
 
+    def save_current_contact_to_file(self):
+        self.contacts[self.currently_selected].write_to_file()
+
     def get_contact(self, index=-1):
+        if (len(self.contacts) == 0):
+            return None
         contact = self.contacts[self.currently_selected if index == -1 else index]
-        return {"contact_fn": contact.contact_fn, "anniversary": contact.anniversary, "bday": contact.bday, "file_name": contact.file_name, "other_properties": contact.other_properties}
+        file = contact.file_name[len(os.path.abspath(self._file_prefix))+1:]
+        return {"contact_fn": contact.contact_fn, "anniversary": contact.anniversary, "bday": contact.bday, "file_name": file, "other_properties": contact.other_properties}
 
     def create_contact(self, data):
         try:
             self.add_contact(vCardContact())
+            self.currently_selected = len(self.contacts)-1
             self.contacts[-1].contact_fn = data["contact_fn"]
-            self.contacts[-1].anniversary = data["anniversary"] if data["anniversary"] != "" else None
-            self.contacts[-1].bday = data["bday"] if data["bday"] != "" else None
-            self.contacts[-1].file_name = data["file_name"]
+            self.contacts[-1].anniversary = None
+            self.contacts[-1].bday = None
+            self.contacts[-1].file_name = os.path.abspath(self._file_prefix + data["file_name"])
             self.contacts[-1].other_properties = 0
             self.get_enum()
+            
+            if (self.sql_manager):
+                if (self.contacts[-1].bday == None):
+                    bday = "NULL"
+                else:
+                    #TODO: do date parsing into SQL format
+                    pass
+                if (self.contacts[-1].anniversary == None):
+                    anniversary = "NULL"
+                else:
+                    #TODO: do date parsing into SQL format
+                    pass
+                fileQuery = f"INSERT INTO FILE (file_name, last_modified, creation_time) VALUES ('{self.contacts[-1].file_name}', NOW(), NOW())"
+                contactQuery = f"INSERT INTO CONTACT (name, birthday, anniversary, file_id) VALUES ('{self.contacts[-1].contact_fn}', {bday}, {anniversary}, (SELECT file_id FROM FILE WHERE file_name = '{self.contacts[-1].file_name}'))"
+                try:
+                    self.sql_manager.run_query(fileQuery)
+                    self.sql_manager.run_query(contactQuery)
+                except mysql.connector.Error as e:
+                    self.remove_contact(-1)
+                    return False
+
             return True
         except ValueError as e:
             self.remove_contact(-1)
             return False
 
     def update_contact(self, data):
+        #gonna be handling all the SQL stuff from manager as SQL can be on/off. dont want to complicate the vcard class with shit it dont care abt
+        if (self.sql_manager):
+            fileIdQuery = f"SELECT file_id FROM FILE WHERE file_name='{self.contacts[self.currently_selected].file_name}'"
+            try:
+                fileId = self.sql_manager.run_query(fileIdQuery)[0][0]
+
+                updateQuery = f"UPDATE FILE SET file_name='{os.path.abspath(self._file_prefix + data['file_name'])}', last_modified=NOW() WHERE file_id={fileId}"
+                self.sql_manager.run_query(updateQuery)
+                updateQuery = f"UPDATE CONTACT SET name='{data['contact_fn']}' WHERE file_id={fileId}"
+                self.sql_manager.run_query(updateQuery)
+
+            except mysql.connector.Error:
+                pass
+
+
 
         try:
-            self.contacts[self.currently_selected].anniversary = data["anniversary"] if data["anniversary"] != "" else None
-            self.contacts[self.currently_selected].bday = data["bday"] if data["bday"] != "" else None
-            self.contacts[self.currently_selected].file_name = data["file_name"]
-            self.contacts[self.currently_selected].other_properties = data["other_properties"]
+            self.contacts[self.currently_selected].file_name = os.path.abspath(self._file_prefix + data["file_name"])
             self.contacts[self.currently_selected].contact_fn = data["contact_fn"]
             self.get_enum()
             return True

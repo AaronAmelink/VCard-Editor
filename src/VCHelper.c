@@ -512,6 +512,9 @@ char* getCardAnniversary(Card* card) {
     if (card->anniversary == NULL) {
         return NULL;
     }
+    if (card->anniversary->isText) {
+        return NULL;
+    }
     char* text = dateToString(card->anniversary);
     return text;
 }
@@ -562,6 +565,9 @@ char* getCardBirthday(Card* card) {
         return NULL;
     }
     if (card->birthday == NULL) {
+        return NULL;
+    }
+    if (card->birthday->isText) {
         return NULL;
     }
     char* text = dateToString(card->birthday);

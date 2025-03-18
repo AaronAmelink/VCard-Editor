@@ -51,12 +51,6 @@ class ListView(Frame):
         layout.add_widget(self._db_query, 2)
         layout.add_widget(Button("Quit", self._quit), 3)
 
-
-
-
-
-
-
         self.fix()
 
     def _reload_list(self, new_value=None):
@@ -75,7 +69,6 @@ class ListView(Frame):
     
     @staticmethod
     def _quit():
-        contact_manager.save_contacts_to_file()
         raise StopApplication("User pressed quit")
 
 
@@ -95,8 +88,8 @@ class vCardView(Frame):
         self.add_layout(layout)
         layout.add_widget(Text("File Name:", "file_name"))
         layout.add_widget(Text("Contact:", "contact_fn"))
-        layout.add_widget(Text("Birthday:", "bday"))
-        layout.add_widget(Text("Anniversary:", "anniversary"))
+        layout.add_widget(Text("Birthday:", "bday", readonly=True))
+        layout.add_widget(Text("Anniversary:", "anniversary", readonly=True))
         layout.add_widget(Text("Other Properties:", "other_properties", readonly=True))
 
         layout2 = Layout([1, 1, 1])
@@ -114,14 +107,13 @@ class vCardView(Frame):
         self.save()
         if (not contact_manager.update_contact(self.data)):
             super(vCardView, self).reset()
-            self.data = contact_manager.get_contact()
         else:
+            contact_manager.save_current_contact_to_file()
             raise NextScene("Main")
 
     @staticmethod
     def _cancel():
         raise NextScene("Main")
-    
 
 class vCardCreateView(Frame):
     def __init__(self, screen):
@@ -139,8 +131,8 @@ class vCardCreateView(Frame):
         self.add_layout(layout)
         layout.add_widget(Text("File Name:", "file_name"))
         layout.add_widget(Text("Contact:", "contact_fn"))
-        layout.add_widget(Text("Birthday:", "bday"))
-        layout.add_widget(Text("Anniversary:", "anniversary"))
+        layout.add_widget(Text("Birthday:", "bday", readonly=True))
+        layout.add_widget(Text("Anniversary:", "anniversary", readonly=True))
         layout.add_widget(Text("Other Properties:", "other_properties", readonly=True))
 
         layout2 = Layout([1, 1, 1])
@@ -158,6 +150,7 @@ class vCardCreateView(Frame):
         if (not contact_manager.create_contact(self.data)):
             super(vCardCreateView, self).reset()
         else:
+            contact_manager.save_current_contact_to_file()
             raise NextScene("Main")
 
     @staticmethod
@@ -175,29 +168,40 @@ class QueryView(Frame):
                                             reduce_cpu=True)
         
             # Create the form for displaying the list of contacts.
-        self.querys = ["Find Contacts born in June", "Find Contacts born in July", "Find Contacts born in August", "Find Contacts born in September", "Find Contacts born in October", "Find Contacts born in November", "Find Contacts born in December"]
-        self.current_query_index = 0
+
+        self._list_view = ListBox(
+            Widget.FILL_FRAME,
+            [],
+            name="contacts",
+            add_scroll_bar=True)
+
 
         layout = Layout([100], fill_frame=True)
         self.add_layout(layout)
+        layout.add_widget(self._list_view)
 
         layout2 = Layout([1, 1, 1])
         self.add_layout(layout2)
 
-        layout2.add_widget(Button("Display matching", self._display), 0)
-
-        self.current_query = Button(self.querys[0], self._change_query)
-        layout2.add_widget(self.current_query, 1)
+        layout2.add_widget(Button("Display All", self._display), 0)
+        layout2.add_widget(Button("Display contacts born in june", self._display), 1)
 
         layout2.add_widget(Button("Back", self._cancel), 2)
         self.fix()
 
     def _display(self):
-        pass
-
-    def _change_query(self):
-        self.current_query_index = (self.current_query_index + 1) % len(self.querys)
-        self.current_query.text = self.querys[self.current_query_index]
+        query = "SELECT * FROM CONTACT"
+        if (contact_manager.sql_manager):
+            try: 
+                options = []
+                res = contact_manager.sql_manager.run_query(query)
+                if (res):
+                    for i, j in enumerate(res):
+                        options.append((j[1], i))
+                self._list_view.options = options
+            except mysql.connector.Error as err:
+                pass
+        
         self.fix()
 
     @staticmethod
@@ -205,8 +209,51 @@ class QueryView(Frame):
         raise NextScene("Main")
 
 
+class LoginView(Frame):
+    def __init__(self, screen):
+        super(LoginView, self).__init__(screen,
+                                          screen.height * 2 // 3,
+                                          screen.width * 2 // 3,
+                                          hover_focus=True,
+                                          can_scroll=False,
+                                          title="Login",
+                                          reduce_cpu=True)
+        # Save off the model that accesses the contacts database.
+        # Create the form for displaying the list of contacts.
+        layout = Layout([100], fill_frame=True)
+        self.add_layout(layout)
+        layout.add_widget(Text("Database Name:", "db_name"))
+        layout.add_widget(Text("User name:", "db_user"))
+        layout.add_widget(Text("Password:", "db_pass"))
+        layout.add_widget(Text("", "error", readonly=True))
+
+
+        layout2 = Layout([1, 1, 1])
+        self.add_layout(layout2)
+        layout2.add_widget(Button("OK", self._ok), 0)
+        layout2.add_widget(Button("Cancel", self._cancel), 2)
+        self.fix()
+
+    def _ok(self):
+        self.save()
+        try:
+            contact_manager.init_sql(self.data["db_name"], self.data["db_user"], self.data["db_pass"])
+            contact_manager.load_contacts() 
+            raise NextScene("Main")
+
+        except mysql.connector.Error as err:
+            self.data = {"error": "Invalid Login"}
+            self.fix()
+
+        contact_manager.load_contacts()  
+
+    @staticmethod
+    def _cancel():
+        raise NextScene("Main")
+
 def demo(screen, scene):
     scenes = [
+        Scene([LoginView(screen)], -1, name="Login"),
         Scene([ListView(screen, contact_manager.enum)], -1, name="Main"),
         Scene([vCardView(screen)], -1, name="Edit vCard"),
         Scene([vCardCreateView(screen)], -1, name="Create vCard"),
@@ -218,7 +265,6 @@ def demo(screen, scene):
 last_scene = None
 
 contact_manager = ContactManager()
-contact_manager.load_contacts()
 
 while True:
     try:
