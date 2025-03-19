@@ -339,10 +339,13 @@ char* dateToString(void* date){
         string = malloc(sizeof(char) * strlen(dt.text));
         strcpy(string, dt.text);
     } else {
-        string = malloc(sizeof(char) * (strlen(dt.date) + strlen(dt.time) + strlen(": ")));
+        string = malloc(sizeof(char) * (strlen(dt.date) + strlen(dt.time) + strlen("T") + (dt.UTC ? 1 : 0) + 1));
         strcpy(string, dt.date);
-        strcat(string, dt.time[0] == '\0' ? "" : ": ");
+        strcat(string, dt.time[0] == '\0' ? "" : "T");
         strcat(string, dt.time);
+        if (dt.UTC) {
+            strcat(string, "Z");
+        }
     }
 
     return string;

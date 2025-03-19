@@ -51,3 +51,35 @@ class SQLManager:
         self.conn = None
 
         return res
+    
+    @staticmethod
+    def get_date_for_sql(dt):
+        if (dt == None):
+            return "NULL"
+        else:
+            date = dt.split("T")[0]
+            date = "00000000" + date
+            
+            formattedDate = list("0000-00-00")
+            
+
+            dateIndex = len(date) - 1 
+            for i in range(len(formattedDate)-1, -1, -1):
+                if (i not in [4, 7]):
+                    formattedDate[i] = date[dateIndex]
+                    dateIndex -= 1
+
+            
+            formattedTime = list("00:00:00")
+            if (len(dt.split("T")) > 1):
+                time = dt.split("T")[1]
+                time = time.replace("Z", "")
+                time = "000000" + time
+
+                timeIndex = len(time) - 1
+                for i in range(len(formattedTime)-1, -1, -1):
+                    if (i not in [2, 5]):
+                        formattedTime[i] = time[timeIndex]
+                        timeIndex -= 1
+            
+            return "".join(formattedDate) + " " + "".join(formattedTime)

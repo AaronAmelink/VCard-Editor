@@ -173,7 +173,8 @@ class QueryView(Frame):
             Widget.FILL_FRAME,
             [],
             name="contacts",
-            add_scroll_bar=True)
+            add_scroll_bar=True
+        )
 
 
         layout = Layout([100], fill_frame=True)
@@ -183,26 +184,41 @@ class QueryView(Frame):
         layout2 = Layout([1, 1, 1])
         self.add_layout(layout2)
 
-        layout2.add_widget(Button("Display All", self._display), 0)
-        layout2.add_widget(Button("Display contacts born in june", self._display), 1)
+        layout2.add_widget(Button("Display All", self._display_all), 0)
+        layout2.add_widget(Button("Display contacts born in june", self._display_month), 1)
 
         layout2.add_widget(Button("Back", self._cancel), 2)
         self.fix()
 
-    def _display(self):
-        query = "SELECT * FROM CONTACT"
+    def _display_all(self):
+        query = "SELECT * FROM CONTACT ORDER BY name"
         if (contact_manager.sql_manager):
             try: 
                 options = []
                 res = contact_manager.sql_manager.run_query(query)
                 if (res):
                     for i, j in enumerate(res):
-                        options.append((j[1], i))
+                        fileNameQuery = f"SELECT file_name FROM FILE WHERE file_id = {j[4]}"
+                        fileName = contact_manager.sql_manager.run_query(fileNameQuery)[0][0]                          
+                        options.append((f"ID: {j[0]}; NAME:{j[1]}, BIRTHDAY:{j[2]}, ANNIVERSARY:{j[3]}, FILENAME: {fileName}", i))
                 self._list_view.options = options
             except mysql.connector.Error as err:
                 pass
         
         self.fix()
+    
+    def _display_month(self):
+        query = "SELECT name, birthday FROM CONTACT WHERE MONTH(birthday) = 6 ORDER BY DATEDIFF(birthday, CURDATE())"
+        if (contact_manager.sql_manager):
+            try: 
+                options = []
+                res = contact_manager.sql_manager.run_query(query)
+                if (res):
+                    for i, j in enumerate(res):
+                        options.append((f"NAME: {j[0]}, BIRTHDAY: {j[1]}", i))
+                self._list_view.options = options
+            except mysql.connector.Error as err:
+                pass
 
     @staticmethod
     def _cancel():
@@ -249,6 +265,7 @@ class LoginView(Frame):
 
     @staticmethod
     def _cancel():
+        contact_manager.load_contacts() 
         raise NextScene("Main")
 
 def demo(screen, scene):

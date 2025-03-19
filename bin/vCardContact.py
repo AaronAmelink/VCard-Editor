@@ -12,7 +12,6 @@ def create_c_string(string):
 class vCardContact:
     def __init__(self, file_name=""):
 
-        print(file_name)
 
         self.vCardLib = CDLL("libvcparser.so")
         if not self.vCardLib:
@@ -33,19 +32,20 @@ class vCardContact:
         self._contact_fn = None
         self._anniversary = None
         self._bday = None
-        self._file_name = None
+        self._file_path = None
         self._other_properties = None
+
+        self._file_name = None
 
         if (file_name == ""):
             self._vCard_ptr = self.vCardLib.createVCardPointer(c_char_p(0))
 
         # run c function to parse file_name / validate it
         else :
-            self._file_name = file_name
-            self._vCard_ptr = self.vCardLib.createVCardPointer(create_c_string(file_name))
-            if (self.validate() != 0):
+            self.file_name = file_name
+            self._vCard_ptr = self.vCardLib.createVCardPointer(create_c_string(self.file_path))
+            if (self.validate() != 0 or self._vCard_ptr == None):
                 #0 is code for OK
-                print("Failed to validate vCard")
                 return None
             else:
                 self._other_properties = self.vCardLib.getCardOtherPropertyNumbers(self._vCard_ptr)
@@ -56,30 +56,32 @@ class vCardContact:
     def _get_anniverstary_from_file(self):
         res = self.vCardLib.getCardAnniversary(self._vCard_ptr)
         if (res):
-            return res.decode('utf-8')
+            aniv = res.decode('utf-8')
+            return aniv
         else:
             return None
         
     def _get_birthday_from_file(self):
         res = self.vCardLib.getCardBirthday(self._vCard_ptr)
         if (res):
-            return res.decode('utf-8')
+            bday = res.decode('utf-8')
+            return bday
         else:
             return None
     
     def __str__(self):
-        return (f"{self.contact_fn} {self.anniversary} {self.bday} {self.file_name} {self.other_properties}")
+        return (f"{self.contact_fn} {self.anniversary} {self.bday} {self.vCardName} {self.other_properties}")
     
     def validate(self):
         return self.vCardLib.validateCard(self._vCard_ptr)
     
-    def write_to_file(self, file_name=""):
-        if (file_name == ""):
-            if (self._file_name == None):
+    def write_to_file(self, file_path=""):
+        if (file_path == ""):
+            if (self.file_path == None):
                 raise ValueError("No file name provided")
             else:
-                file_name = self._file_name
-        res = self.vCardLib.writeCard(create_c_string(file_name), self._vCard_ptr)
+                file_path = self.file_path
+        res = self.vCardLib.writeCard(create_c_string(file_path), self._vCard_ptr)
         if (res != 0):
             raise ValueError("Failed to write to file")
     
@@ -147,14 +149,23 @@ class vCardContact:
         self._bday = v
 
     @property
-    def file_name(self):
-        if (self._file_name == None):
+    def file_path(self):
+        if (self._file_path == None):
             return "No File Name"
+        return self._file_path
+    
+    @file_path.setter
+    def file_path(self, v):
+        self._file_path = v
+
+    @property
+    def file_name(self):
         return self._file_name
     
     @file_name.setter
     def file_name(self, v):
         self._file_name = v
+        self.file_path = os.path.abspath(os.getcwd() +"/bin/cards/"+v)
 
     @property
     def other_properties(self):
@@ -171,7 +182,6 @@ class ContactManager:
         self.contacts = []
         self.enum = []
         self.currently_selected = 0
-        self._file_prefix = os.getcwd() +"/bin/cards/"
 
         self.sql_manager = None
 
@@ -210,17 +220,33 @@ class ContactManager:
         files = os.listdir( os.path.abspath(os.getcwd()) + "/bin/cards/")
         for file in files:
             if file.endswith(".vcf") or file.endswith(".vcard"):
-                self.add_contact(vCardContact(os.path.abspath(self._file_prefix+file)))
+                card = vCardContact(file)
+                if (card._vCard_ptr != None and card.validate() == 0):
+                    self.add_contact(card)
+                    self.currently_selected = len(self.contacts)-1
+                else:
+                    continue;
 
                 if (self.sql_manager):
-                    createQuery = "SELECT * FROM FILE WHERE file_name = '" + os.path.abspath(self._file_prefix+file) + "'"
+                    createQuery = "SELECT * FROM FILE WHERE file_name = '" + file + "'"
                     res = self.sql_manager.run_query(createQuery)
 
                     if (not res or len(res) == 0):
-                        insertQuery = f"INSERT INTO FILE (file_name, last_modified, creation_time) VALUES ('{os.path.abspath(self._file_prefix+file)}', NOW(), NOW())"
+                        insertQuery = f"INSERT INTO FILE (file_name, last_modified, creation_time) VALUES ('{file}', NOW(), NOW())"
                         res = self.sql_manager.run_query(insertQuery)
 
-                        insertQuery = f"INSERT INTO CONTACT (name, birthday, anniversary, file_id) VALUES ('{self.contacts[-1].contact_fn}', NULL, NULL, (SELECT file_id FROM FILE WHERE file_name = '{os.path.abspath(self._file_prefix+file)}'))"
+                        if (self.contacts[-1].bday == None):
+                            bday = "NULL"
+                        else:
+                            bday = f"'{SQLManager.get_date_for_sql(self.contacts[-1].bday)}'"
+                            
+                        if (self.contacts[-1].anniversary == None):
+                            anniversary = "NULL"
+                        else:
+                            anniversary = f"'{SQLManager.get_date_for_sql(self.contacts[-1].anniversary)}'"
+                            
+
+                        insertQuery = f"INSERT INTO CONTACT (name, birthday, anniversary, file_id) VALUES ('{self.contacts[-1].contact_fn}', {bday}, {anniversary}, (SELECT file_id FROM FILE WHERE file_name = '{file}'))"
                         res = self.sql_manager.run_query(insertQuery)
 
 
@@ -235,8 +261,8 @@ class ContactManager:
         if (len(self.contacts) == 0):
             return None
         contact = self.contacts[self.currently_selected if index == -1 else index]
-        file = contact.file_name[len(os.path.abspath(self._file_prefix))+1:]
-        return {"contact_fn": contact.contact_fn, "anniversary": contact.anniversary, "bday": contact.bday, "file_name": file, "other_properties": contact.other_properties}
+
+        return {"contact_fn": contact.contact_fn, "anniversary": contact.anniversary, "bday": contact.bday, "file_name": contact.file_name, "other_properties": contact.other_properties}
 
     def create_contact(self, data):
         try:
@@ -245,21 +271,22 @@ class ContactManager:
             self.contacts[-1].contact_fn = data["contact_fn"]
             self.contacts[-1].anniversary = None
             self.contacts[-1].bday = None
-            self.contacts[-1].file_name = os.path.abspath(self._file_prefix + data["file_name"])
+            self.contacts[-1].file_name = data["file_name"]
             self.contacts[-1].other_properties = 0
             self.get_enum()
             
             if (self.sql_manager):
+
                 if (self.contacts[-1].bday == None):
                     bday = "NULL"
                 else:
-                    #TODO: do date parsing into SQL format
-                    pass
+                    bday = f"'{SQLManager.get_date_for_sql(self.contacts[-1].bday)}'"
+                    
                 if (self.contacts[-1].anniversary == None):
                     anniversary = "NULL"
                 else:
-                    #TODO: do date parsing into SQL format
-                    pass
+                    anniversary = f"'{SQLManager.get_date_for_sql(self.contacts[-1].anniversary)}'"
+                    
                 fileQuery = f"INSERT INTO FILE (file_name, last_modified, creation_time) VALUES ('{self.contacts[-1].file_name}', NOW(), NOW())"
                 contactQuery = f"INSERT INTO CONTACT (name, birthday, anniversary, file_id) VALUES ('{self.contacts[-1].contact_fn}', {bday}, {anniversary}, (SELECT file_id FROM FILE WHERE file_name = '{self.contacts[-1].file_name}'))"
                 try:
@@ -281,7 +308,7 @@ class ContactManager:
             try:
                 fileId = self.sql_manager.run_query(fileIdQuery)[0][0]
 
-                updateQuery = f"UPDATE FILE SET file_name='{os.path.abspath(self._file_prefix + data['file_name'])}', last_modified=NOW() WHERE file_id={fileId}"
+                updateQuery = f"UPDATE FILE SET file_name='{self.contacts[self.currently_selected].file_name}', last_modified=NOW() WHERE file_id={fileId}"
                 self.sql_manager.run_query(updateQuery)
                 updateQuery = f"UPDATE CONTACT SET name='{data['contact_fn']}' WHERE file_id={fileId}"
                 self.sql_manager.run_query(updateQuery)
@@ -292,10 +319,12 @@ class ContactManager:
 
 
         try:
-            self.contacts[self.currently_selected].file_name = os.path.abspath(self._file_prefix + data["file_name"])
+            self.contacts[self.currently_selected].file_name = data["file_name"]
             self.contacts[self.currently_selected].contact_fn = data["contact_fn"]
             self.get_enum()
             return True
         except ValueError as e:
             return False
+        
+
 
