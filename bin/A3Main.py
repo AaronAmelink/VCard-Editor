@@ -5,6 +5,7 @@ from asciimatics.widgets import Frame, ListBox, Layout, Divider, Text, \
 from asciimatics.scene import Scene
 from asciimatics.screen import Screen
 from asciimatics.exceptions import ResizeScreenError, NextScene, StopApplication
+from asciimatics.event import KeyboardEvent
 import sys
 from vCardContact import *
 
@@ -98,6 +99,12 @@ class vCardView(Frame):
         layout2.add_widget(Button("Cancel", self._cancel), 2)
         self.fix()
 
+    def process_event(self, event):
+        if (isinstance(event, KeyboardEvent)) :
+            if (event.key_code == -1):
+                self._cancel()
+        return super().process_event(event)
+
     def reset(self):
         # Do standard reset to clear out form, then populate with new data.
         super(vCardView, self).reset()
@@ -143,14 +150,27 @@ class vCardCreateView(Frame):
 
     def reset(self):
         # Do standard reset to clear out form, then populate with new data.
+        newData = {}
+        for (key, _) in self.data.items():
+            newData[key] = ""
+        self.data = newData
+        self.save()
+        self.fix()
         super(vCardCreateView, self).reset()
+
+    def process_event(self, event):
+        if (isinstance(event, KeyboardEvent)) :
+            if (event.key_code == -1):
+                self._cancel()
+        return super().process_event(event)
 
     def _ok(self):
         self.save()
         if (not contact_manager.create_contact(self.data)):
-            super(vCardCreateView, self).reset()
+            pass
         else:
             contact_manager.save_current_contact_to_file()
+            self.reset()
             raise NextScene("Main")
 
     @staticmethod
@@ -250,6 +270,12 @@ class LoginView(Frame):
         layout2.add_widget(Button("Cancel", self._cancel), 2)
         self.fix()
 
+    def process_event(self, event):
+        if (isinstance(event, KeyboardEvent)) :
+            if (event.key_code == -1):
+                self._cancel()
+        return super().process_event(event)
+
     def _ok(self):
         self.save()
         try:
@@ -286,6 +312,8 @@ contact_manager = ContactManager()
 while True:
     try:
         Screen.wrapper(demo, catch_interrupt=True, arguments=[last_scene])
+        if (contact_manager.sql_manager):
+            contact_manager.sql_manager.close()
         sys.exit(0)
     except ResizeScreenError as e:
         last_scene = e.scene

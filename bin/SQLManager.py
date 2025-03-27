@@ -28,6 +28,15 @@ class SQLManager:
         self.conn.close()
         self.conn = None
 
+    def close(self):
+        # anything to close up shop?
+        try:
+            self.run_query("DROP TABLE CONTACT")
+            self.run_query("DROP TABLE FILE")
+        except:
+            #gave it our best shot lol
+            pass
+
     def connect(self):
         if (self.dbName == None or self.dbUser == None or self.dbPass == None):
             raise ValueError("Missing Database Information")

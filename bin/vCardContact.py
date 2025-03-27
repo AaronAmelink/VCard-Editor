@@ -265,6 +265,9 @@ class ContactManager:
         return {"contact_fn": contact.contact_fn, "anniversary": contact.anniversary, "bday": contact.bday, "file_name": contact.file_name, "other_properties": contact.other_properties}
 
     def create_contact(self, data):
+        ext = data["file_name"].split(".")[-1]
+        if (ext != "vcf" and ext != "vcard"):
+            return False
         try:
             self.add_contact(vCardContact())
             self.currently_selected = len(self.contacts)-1
